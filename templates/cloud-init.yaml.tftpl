@@ -1,0 +1,28 @@
+#cloud-config
+# Rendered per host by main.tf. MAAS already injects the SSH keys stored in
+# the deploying MAAS user's profile; keys below are added on top of those.
+hostname: ${hostname}
+preserve_hostname: false
+timezone: UTC
+
+%{ if length(ssh_authorized_keys) > 0 ~}
+ssh_authorized_keys:
+%{ for key in ssh_authorized_keys ~}
+  - ${key}
+%{ endfor ~}
+%{ endif ~}
+
+package_update: true
+package_upgrade: false
+%{ if length(packages) > 0 ~}
+packages:
+%{ for p in packages ~}
+  - ${p}
+%{ endfor ~}
+%{ endif ~}
+
+runcmd:
+  - [ sh, -c, 'echo "Provisioned by Terraform + MAAS" >> /etc/motd' ]
+%{ for cmd in extra_runcmd ~}
+  - ${jsonencode(cmd)}
+%{ endfor ~}

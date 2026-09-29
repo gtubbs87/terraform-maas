@@ -1,0 +1,72 @@
+# Copy to terraform.tfvars and edit. terraform.tfvars is git-ignored.
+# Prefer env vars for secrets:
+#   export MAAS_API_URL=http://10.10.0.2:5240/MAAS
+#   export MAAS_API_KEY=$(sudo maas apikey --username admin)
+#   export TF_VAR_power_secrets='{"node01":{"power_pass":"..."},"node02":{"power_pass":"..."}}'
+
+maas_installation_method = "snap"
+
+defaults = {
+  power_type         = "ipmi"
+  zone               = "default"
+  pool               = "default"
+  distro_series      = "noble" # Ubuntu 24.04
+  commission_timeout = "45m"
+  deploy_timeout     = "45m"
+  erase_on_release   = false
+}
+
+ssh_authorized_keys = [
+  "ssh-ed25519 AAAAC3Nza...replace-me ops@example.com",
+]
+
+extra_packages = ["chrony", "jq"]
+
+# Optional: have Terraform create the provisioning network.
+manage_network = false
+# network = {
+#   fabric_name = "fabric-prov"
+#   vlan_vid    = 0
+#   cidr        = "10.10.0.0/24"
+#   gateway_ip  = "10.10.0.1"
+#   dns_servers = ["10.10.0.2"]
+#   reserved_ranges = [
+#     { start_ip = "10.10.0.1", end_ip = "10.10.0.20", comment = "infra" },
+#   ]
+# }
+
+hosts = {
+  # New bare-metal server: enlist -> commission -> deploy.
+  node01 = {
+    pxe_mac_address = "aa:bb:cc:dd:ee:01"
+    power_parameters = {
+      power_address = "10.10.1.101"
+      power_user    = "maas"
+      # power_pass comes from var.power_secrets
+    }
+    tags = ["compute", "rack-a"]
+    network_interfaces = [
+      { name = "eno1", subnet_cidr = "10.10.0.0/24", ip_address = "10.10.0.101" },
+    ]
+  }
+
+  # Redfish BMC, commission only (stays Ready until deploy = true).
+  node02 = {
+    deploy          = false
+    power_type      = "redfish"
+    pxe_mac_address = "aa:bb:cc:dd:ee:02"
+    power_parameters = {
+      power_address = "10.10.1.102"
+      power_user    = "admin"
+    }
+    tags = ["storage", "rack-a"]
+  }
+
+  # Machine MAAS already knows about (auto-enlisted & commissioned): deploy only.
+  node03 = {
+    register      = false
+    distro_series = "jammy"
+    tags          = ["compute"]
+    extra_runcmd  = ["systemctl enable --now chrony"]
+  }
+}
